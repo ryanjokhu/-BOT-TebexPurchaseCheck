@@ -8,6 +8,7 @@ Real-Time Data: Displays live transaction and purchase information, including pa
 Error Handling: Clear error messages if the transaction or player is not found.
 
 ⚙️ Setup Instructions
+
 Clone the repository:
 - git clone https://github.com/ryanjokhu/-BOT-TebexPurchaseCheck.git
 - cd -BOT-TebexPurchaseCheck
