@@ -23,3 +23,8 @@ Configure environment variables:
 
 Run the bot:
 - python tebextransactioncheck.py
+
+✨ Commands
+
+- /transaction <transaction_id>	Fetches and displays details for a specific Tebex transaction.
+- /purchasehistory <steam_id>	Displays the purchase history for the specified SteamID64.
