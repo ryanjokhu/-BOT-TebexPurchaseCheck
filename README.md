@@ -1,15 +1,15 @@
-🛡️ [BOT] TebexPurchaseCheck
+[BOT] TebexPurchaseCheck
 
 A Discord bot built to easily check Tebex transactions and purchase history using the Tebex API. This bot allows server owners and administrators to quickly verify payments and view purchase history directly within Discord.
 
-🚀 Features
+Features
 
 Transaction Lookup: Fetches detailed information about specific transactions by Transaction ID.
 Purchase History: Retrieves the full purchase history of a player using their SteamID64.
 Real-Time Data: Displays live transaction and purchase information, including packages, amounts, status, and more.
 Error Handling: Clear error messages if the transaction or player is not found.
 
-⚙️ Setup Instructions
+Setup Instructions
 
 Clone the repository:
 - git clone https://github.com/ryanjokhu/-BOT-TebexPurchaseCheck.git
@@ -24,7 +24,7 @@ Configure environment variables:
 Run the bot:
 - python tebextransactioncheck.py
 
-✨ Commands
+Commands
 
 - /transaction <transaction_id>	Fetches and displays details for a specific Tebex transaction.
 - /purchasehistory <steam_id>	Displays the purchase history for the specified SteamID64.
