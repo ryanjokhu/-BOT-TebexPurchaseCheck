@@ -8,30 +8,32 @@ Ship the purchase-history cutoff fix safely:
 - complete text receipt attachment;
 - staff-only access;
 - environment-based secrets;
-- current-standard documentation.
+- current-standard documentation;
+- minimal CI syntax validation.
 
 ## P0: before merge
 
 These are required before merging the draft PR into `master`:
 
-1. Run syntax check:
+1. Confirm CI passes.
+2. Run local syntax check if testing manually:
 
 ```bash
 python -m py_compile tebextransactioncheck.py
 ```
 
-2. Test `/transaction` with a known valid transaction.
-3. Test `/purchasehistory` with a short-history player.
-4. Test `/purchasehistory` with a long-history player.
-5. Confirm the `.txt` receipt contains all payments returned by Tebex.
-6. Confirm a non-staff account is denied.
-7. Confirm private mode is default.
-8. Confirm `private=false` only posts publicly when intentionally selected.
+3. Test `/transaction` with a known valid transaction.
+4. Test `/purchasehistory` with a short-history player.
+5. Test `/purchasehistory` with a long-history player.
+6. Confirm the `.txt` receipt contains all payments returned by Tebex.
+7. Confirm a non-staff account is denied.
+8. Confirm private mode is default.
+9. Confirm `private=false` only posts publicly when intentionally selected.
 
 ## P1: highest-value next improvements
 
 1. Add automated tests for receipt formatting and pagination.
-2. Add GitHub Actions for syntax checks.
+2. Expand CI with linting and test execution.
 3. Add persistent lookup audit logs.
 4. Add a `/receiptfile <uuid>` command for file-only evidence.
 5. Add a `PUBLIC_RECEIPTS_ENABLED=false` feature flag to disable `private=false` in stricter servers.
