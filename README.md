@@ -51,6 +51,7 @@ TEBEX_SECRET=your_tebex_secret
 DISCORD_TOKEN=your_discord_bot_token
 STAFF_ROLE_IDS=role_id_1,role_id_2
 HISTORY_ITEMS_PER_PAGE=8
+SHOW_TOTAL_SPENT_IN_EMBED=false
 LOG_LEVEL=INFO
 ```
 
@@ -65,10 +66,13 @@ python tebextransactioncheck.py
 For long purchase histories, the bot now:
 
 - sorts payments newest-first;
+- prioritizes product/package names in the visible Discord rows;
+- uses the transaction ID as secondary audit detail, not the main row label;
+- fetches individual Tebex transaction details when the user-history response does not include product names;
 - splits payments into readable Discord embed pages;
 - adds Previous/Next buttons for navigation;
 - attaches a complete `.txt` receipt with every payment returned by Tebex;
-- shows summary data including total USD spend, payment count, ban count, and chargeback rate.
+- hides total spent from the visible embed by default while keeping it in the attached staff receipt.
 
 The embed pages are for browsing. The `.txt` receipt is the audit artifact staff should use for final verification.
 
@@ -99,6 +103,7 @@ Then manually test:
 - `/transaction` with a known valid transaction;
 - `/purchasehistory` with a short-history player;
 - `/purchasehistory` with a long-history player;
+- product names appear in history rows when Tebex exposes them through the transaction detail endpoint;
 - receipt attachment contents;
 - staff authorization;
 - non-staff denial;
