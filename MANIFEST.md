@@ -19,7 +19,8 @@ Required standards:
 - changes go through a branch and pull request;
 - long-history behavior is tested before deploy;
 - rollback is known before merge;
-- documentation changes ship with behavior changes.
+- documentation changes ship with behavior changes;
+- CI catches basic syntax failures before merge.
 
 ## Primary production problem
 
@@ -48,6 +49,7 @@ The legacy `/purchasehistory` command fetched a Tebex user payload and generated
 | `requirements.txt` | Python dependencies. |
 | `.env.example` | Example environment configuration with fake values. |
 | `.gitignore` | Prevents local secrets, venvs, caches, and editor files from being committed. |
+| `.github/workflows/ci.yml` | Pull-request and master-branch syntax validation. |
 | `README.md` | Public project overview, setup, command summary, docs index. |
 | `CONTRIBUTING.md` | Branch, PR, validation, code, and documentation standards. |
 | `MANIFEST.md` | Deep project manifest and release checklist. |
@@ -147,8 +149,9 @@ The app is currently safe to review as a small single-file bot. The major produc
 1. Live Tebex long-history testing is still required.
 2. The current Tebex endpoint may or may not return true lifetime history for every player.
 3. No persistent audit log exists yet.
-4. No automated tests or CI exist yet.
-5. No production process manager config has been validated against the real host.
+4. No automated regression tests exist yet.
+5. CI currently performs syntax validation only; linting, tests, and dependency scanning are future upgrades.
+6. No production process manager config has been validated against the real host.
 
 ## Operational checklist
 
@@ -161,7 +164,7 @@ Before deployment:
 5. Set `DISCORD_TOKEN` to the bot token.
 6. Set `STAFF_ROLE_IDS` to the Discord role IDs allowed to run lookups.
 7. Start with `HISTORY_ITEMS_PER_PAGE=8`.
-8. Run `python -m py_compile tebextransactioncheck.py`.
+8. Confirm CI passes or run `python -m py_compile tebextransactioncheck.py` locally.
 9. Run the bot and confirm slash commands sync.
 10. Test a short-history player and a long-history player.
 
@@ -193,7 +196,7 @@ The bot now avoids Discord-side truncation and displays every payment returned b
 3. Add a `/receiptfile <uuid>` command that only returns the full `.txt` receipt.
 4. Add an optional CSV export for accounting/admin review.
 5. Add unit tests around payment formatting and pagination boundaries.
-6. Add GitHub Actions for syntax checks.
+6. Expand GitHub Actions with tests, linting, and dependency scanning.
 7. Consider a small SQLite cache only for audit metadata, not for secret payment data.
 8. Rotate any Tebex/Discord secrets that were ever pasted into source code or shared in screenshots.
 
