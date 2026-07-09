@@ -34,7 +34,7 @@ security/audit-logging
 
 ## Required validation
 
-Before opening or updating a PR:
+Before opening or updating a PR, confirm CI passes. You can also run the syntax check locally:
 
 ```bash
 python -m py_compile tebextransactioncheck.py
@@ -85,7 +85,7 @@ Update docs when a change affects:
 
 Do not merge until:
 
-- syntax checks pass;
+- CI passes;
 - relevant manual Discord/Tebex test passes;
 - docs are updated;
 - rollback path is clear.
