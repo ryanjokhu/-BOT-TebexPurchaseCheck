@@ -39,6 +39,12 @@ This is intentional. Receipt data can influence grants, refunds, bans, and staff
 
 Staff can intentionally set `private=false`, but that should be reserved for controlled staff channels or cases where a visible audit trail is useful. Do not post receipt data in public player channels.
 
+## CI security boundary
+
+The GitHub Actions workflow performs syntax validation only. It does not call Discord or Tebex, and it should not receive production secrets.
+
+Do not add secrets to CI unless a future test specifically requires them and the PR threat model has been reviewed.
+
 ## Logging policy
 
 Current runtime logs are minimal and do not intentionally send raw Tebex responses to Discord.
