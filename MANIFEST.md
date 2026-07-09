@@ -1,8 +1,25 @@
 # TebexPurchaseCheck Deep Manifest
 
+Status: draft PR branch
+Branch: `fix/full-purchase-history-pagination`
+Audit date: 2026-07-09
+
 ## Purpose
 
 TebexPurchaseCheck is a Discord staff utility for R&R-style payment verification workflows. Its job is to let authorized staff verify Tebex receipts without relying on player screenshots, partial Discord messages, or executive-only manual checks.
+
+## Production standard
+
+This project should be treated as a small production admin tool, not a throwaway Discord script.
+
+Required standards:
+
+- secrets stay out of source code;
+- receipt data is staff-only by default;
+- changes go through a branch and pull request;
+- long-history behavior is tested before deploy;
+- rollback is known before merge;
+- documentation changes ship with behavior changes.
 
 ## Primary production problem
 
@@ -22,6 +39,24 @@ The legacy `/purchasehistory` command fetched a Tebex user payload and generated
 - Secret/config pattern: secrets were expected to be pasted directly into the script.
 - Tests/CI: not present.
 - Runtime architecture: single Python file using `discord.py` slash commands and `aiohttp`.
+
+## Current repository surface
+
+| Path | Purpose |
+| --- | --- |
+| `tebextransactioncheck.py` | Bot runtime, command handlers, Tebex client, formatting, pagination, receipt attachment. |
+| `requirements.txt` | Python dependencies. |
+| `.env.example` | Example environment configuration with fake values. |
+| `.gitignore` | Prevents local secrets, venvs, caches, and editor files from being committed. |
+| `README.md` | Public project overview, setup, command summary, docs index. |
+| `CONTRIBUTING.md` | Branch, PR, validation, code, and documentation standards. |
+| `MANIFEST.md` | Deep project manifest and release checklist. |
+| `docs/APP_AUDIT.md` | Full app audit, risk register, acceptance checklist. |
+| `docs/ARCHITECTURE.md` | Runtime model, command flow, data boundaries. |
+| `docs/OPERATIONS.md` | Setup, deployment, monitoring, rollback, incident response. |
+| `docs/SECURITY.md` | Secrets, privacy, staff permissions, incident response. |
+| `docs/STAFF_GUIDE.md` | Staff-facing verification workflow. |
+| `docs/ROADMAP.md` | Prioritized next improvements. |
 
 ## Legacy command map
 
@@ -71,7 +106,7 @@ The updated `/purchasehistory` command now:
 - attaches a complete `.txt` receipt containing every payment returned by Tebex;
 - shows summary fields for total USD spent, payment count, ban count, and chargeback rate.
 
-The `.txt` receipt is the audit anchor. Even if the embed pages are inconvenient for a very long history, staff still receive a full downloadable receipt file.
+The `.txt` receipt is the audit anchor. Even if the embed pages are inconvenient for a very long history, staff still receive a full receipt file.
 
 ### Privacy and staff workflow
 
@@ -105,41 +140,15 @@ Secrets and server IDs now come from environment variables instead of source cod
 
 `.env.example` documents the expected format. `.gitignore` blocks real `.env` files from being committed.
 
-## Files added or changed
+## App audit summary
 
-### `tebextransactioncheck.py`
+The app is currently safe to review as a small single-file bot. The major production flaw has been addressed at the Discord output layer. Remaining production risks are mostly around operational proof and future hardening:
 
-Primary bot runtime. Reworked to include:
-
-- environment-based settings;
-- optional `.env` loading;
-- Tebex API client wrapper;
-- defensive JSON handling;
-- rate-limit, auth, not-found, and generic error handling;
-- staff authorization helper;
-- transaction embed formatting;
-- purchase-history pagination;
-- complete text receipt attachment.
-
-### `requirements.txt`
-
-Pins the runtime dependency families:
-
-- `discord.py`
-- `aiohttp`
-- `python-dotenv`
-
-### `.env.example`
-
-Documents required and optional runtime settings.
-
-### `.gitignore`
-
-Protects virtual environments, Python cache files, editor files, and local secret files.
-
-### `README.md`
-
-Updated setup, command, access-control, and purchase-history behavior documentation.
+1. Live Tebex long-history testing is still required.
+2. The current Tebex endpoint may or may not return true lifetime history for every player.
+3. No persistent audit log exists yet.
+4. No automated tests or CI exist yet.
+5. No production process manager config has been validated against the real host.
 
 ## Operational checklist
 
