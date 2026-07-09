@@ -1,25 +1,29 @@
-# [BOT] TebexPurchaseCheck
+# TebexPurchaseCheck
 
-A staff-only Discord bot for checking Tebex transactions and purchase history by SteamID64/UUID.
+A staff-only Discord bot for checking Tebex transactions and player purchase history by SteamID64/UUID.
 
-## What changed
+This bot exists to stop receipt ambiguity. Staff should be able to verify a player's Tebex history directly from Discord without relying on player screenshots, partial messages, or executive-only manual checks.
 
-The old bot cut off long purchase histories because it sent only the first 2,000 characters of the generated Discord message. This version sends purchase history as paginated Discord embeds and attaches the complete receipt as a `.txt` file, so staff can verify long-time players without guessing or waiting for an executive manual check.
+## Current release focus
+
+The legacy bot cut off long purchase histories because it generated one large Discord message and sent only the first 2,000 characters. This version fixes that by sending purchase history as paginated Discord embeds and attaching a complete `.txt` receipt containing every payment returned by Tebex.
 
 ## Commands
 
-- `/transaction <transaction_id>` — fetch a single Tebex transaction.
-- `/purchasehistory <uuid> [private]` — fetch a player's purchase history by SteamID64/UUID.
-  - `private` defaults to `true`, so receipt lookups are visible only to the staff member who ran the command.
-  - Set `private` to `false` only when staff intentionally want the receipt posted in the channel.
+| Command | Purpose | Default visibility |
+| --- | --- | --- |
+| `/transaction <transaction_id>` | Fetch one Tebex transaction. | Private |
+| `/purchasehistory <uuid> [private]` | Fetch a player's purchase history by SteamID64/UUID. | Private |
+
+`/purchasehistory` supports `private=false`, but that should only be used intentionally in staff-only channels.
 
 ## Access control
 
-The commands are available to:
+Commands are available to:
 
-- Discord server administrators.
-- Users with the `Manage Server` permission.
-- Users with a role ID listed in `STAFF_ROLE_IDS`.
+- Discord server administrators;
+- users with the `Manage Server` permission;
+- users with a role ID listed in `STAFF_ROLE_IDS`.
 
 If `STAFF_ROLE_IDS` is empty, only administrators and users with `Manage Server` can run the commands.
 
@@ -60,12 +64,45 @@ python tebextransactioncheck.py
 
 For long purchase histories, the bot now:
 
-- Sorts payments newest-first.
-- Splits payments into readable Discord embed pages.
-- Adds Previous/Next buttons for navigation.
-- Attaches a complete `.txt` receipt with every payment returned by Tebex.
-- Shows summary data including total USD spend, payment count, ban count, and chargeback rate.
+- sorts payments newest-first;
+- splits payments into readable Discord embed pages;
+- adds Previous/Next buttons for navigation;
+- attaches a complete `.txt` receipt with every payment returned by Tebex;
+- shows summary data including total USD spend, payment count, ban count, and chargeback rate.
 
-## Notes
+The embed pages are for browsing. The `.txt` receipt is the audit artifact staff should use for final verification.
 
-This bot displays every payment returned by the Tebex user endpoint. If Tebex itself ever limits that endpoint server-side, the bot will still show the complete response it receives, but a future API migration would be needed to fetch deeper paginated Tebex history.
+## Documentation
+
+| Document | Purpose |
+| --- | --- |
+| [`MANIFEST.md`](MANIFEST.md) | Deep project manifest, production problem, changed files, verification, rollback. |
+| [`docs/APP_AUDIT.md`](docs/APP_AUDIT.md) | Full app audit, risk register, acceptance checklist, merge recommendation. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Runtime model, command flows, data boundaries, future module split. |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Setup, deployment, monitoring, incident response, rollback. |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Secrets, access control, privacy defaults, incident response. |
+| [`docs/STAFF_GUIDE.md`](docs/STAFF_GUIDE.md) | Staff-facing command usage and receipt verification workflow. |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Prioritized next steps and open Tebex endpoint research item. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branch, PR, validation, coding, and documentation standards. |
+
+## Validation before merge
+
+Before merging/deploying this release:
+
+```bash
+python -m py_compile tebextransactioncheck.py
+```
+
+Then manually test:
+
+- `/transaction` with a known valid transaction;
+- `/purchasehistory` with a short-history player;
+- `/purchasehistory` with a long-history player;
+- receipt attachment contents;
+- staff authorization;
+- non-staff denial;
+- private default behavior.
+
+## Known limitation
+
+This bot displays every payment returned by the current Tebex `/user/{uuid}` endpoint. If Tebex itself limits that endpoint server-side, the bot will still show the complete response it receives, but a future API migration would be needed to fetch deeper paginated Tebex history.
