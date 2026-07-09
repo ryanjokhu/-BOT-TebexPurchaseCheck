@@ -27,6 +27,28 @@ TEBEX_API_BASE = "https://plugin.tebex.io"
 DISCORD_EMBED_DESCRIPTION_LIMIT = 4096
 SAFE_DESCRIPTION_LIMIT = 3600
 DEFAULT_HISTORY_ITEMS_PER_PAGE = 8
+PRODUCT_FETCH_CONCURRENCY = 4
+
+PRODUCT_NAME_KEYS = (
+    "name",
+    "package_name",
+    "packageName",
+    "display_name",
+    "displayName",
+    "title",
+    "product_name",
+    "productName",
+)
+PRODUCT_CONTAINER_KEYS = (
+    "package",
+    "packages",
+    "item",
+    "items",
+    "product",
+    "products",
+    "contents",
+    "content",
+)
 
 
 def _env_required(name: str) -> str:
@@ -44,6 +66,17 @@ def _env_int(name: str, default: int) -> int:
         return int(value)
     except ValueError as exc:
         raise RuntimeError(f"Environment variable {name} must be an integer") from exc
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name, "").strip().lower()
+    if not value:
+        return default
+    if value in {"1", "true", "yes", "y", "on"}:
+        return True
+    if value in {"0", "false", "no", "n", "off"}:
+        return False
+    raise RuntimeError(f"Environment variable {name} must be true or false")
 
 
 def _env_int_set(name: str) -> set[int]:
@@ -70,6 +103,7 @@ class Settings:
     discord_token: str
     staff_role_ids: set[int]
     history_items_per_page: int
+    show_total_spent_in_embed: bool
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -79,6 +113,7 @@ class Settings:
             discord_token=_env_required("DISCORD_TOKEN"),
             staff_role_ids=_env_int_set("STAFF_ROLE_IDS"),
             history_items_per_page=max(1, min(15, _env_int("HISTORY_ITEMS_PER_PAGE", DEFAULT_HISTORY_ITEMS_PER_PAGE))),
+            show_total_spent_in_embed=_env_bool("SHOW_TOTAL_SPENT_IN_EMBED", False),
         )
 
 
@@ -176,6 +211,12 @@ def as_text(value: Any, fallback: str = "N/A") -> str:
     return text if text else fallback
 
 
+def truncate_text(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: max(0, limit - 1)].rstrip() + "…"
+
+
 def money(value: Any, currency: str | None = None, symbol: str | None = None) -> str:
     text = as_text(value, "0.00")
     try:
@@ -226,16 +267,106 @@ def status_label(value: Any) -> str:
         return as_text(value, "Unknown")
 
 
-def package_names(packages: Iterable[Any]) -> list[str]:
+def unique_text(values: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = as_text(value, "").strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def _collect_product_names(value: Any, *, allow_plain_string: bool = False) -> list[str]:
+    if value is None:
+        return []
+
+    if isinstance(value, str):
+        return [value] if allow_plain_string and value.strip() else []
+
+    if isinstance(value, list):
+        names: list[str] = []
+        for item in value:
+            names.extend(_collect_product_names(item, allow_plain_string=True))
+        return unique_text(names)
+
+    if not isinstance(value, dict):
+        return []
+
     names: list[str] = []
-    for package in packages:
-        if isinstance(package, dict):
-            name = package.get("name") or package.get("package") or package.get("id")
-        else:
-            name = package
-        if name:
-            names.append(as_text(name))
-    return names
+    for key in PRODUCT_NAME_KEYS:
+        candidate = value.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            names.append(candidate)
+            break
+
+    for key in PRODUCT_CONTAINER_KEYS:
+        if key in value:
+            names.extend(_collect_product_names(value.get(key), allow_plain_string=True))
+
+    return unique_text(names)
+
+
+def package_names(packages: Iterable[Any]) -> list[str]:
+    return _collect_product_names(list(packages), allow_plain_string=True)
+
+
+def transaction_id_from_payment(payment: dict[str, Any]) -> str:
+    return as_text(payment.get("txn_id") or payment.get("transaction_id") or payment.get("id"), "")
+
+
+def product_names_from_payment(payment: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+
+    enriched = payment.get("_product_names")
+    if isinstance(enriched, list):
+        names.extend(as_text(name, "") for name in enriched)
+
+    for key in PRODUCT_CONTAINER_KEYS:
+        if key in payment:
+            names.extend(_collect_product_names(payment.get(key), allow_plain_string=True))
+
+    # Some Tebex responses use one direct product/package name instead of a nested package object.
+    for key in PRODUCT_NAME_KEYS:
+        candidate = payment.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            names.append(candidate)
+
+    return unique_text(names)
+
+
+async def enrich_payment_product_names(payments: list[dict[str, Any]]) -> None:
+    """Fetch transaction details for rows that do not include package names in the user-history response."""
+
+    missing = [payment for payment in payments if not product_names_from_payment(payment) and transaction_id_from_payment(payment)]
+    if not missing:
+        return
+
+    semaphore = asyncio.Semaphore(PRODUCT_FETCH_CONCURRENCY)
+
+    async with aiohttp.ClientSession() as session:
+        async def enrich_one(payment: dict[str, Any]) -> None:
+            txn_id = transaction_id_from_payment(payment)
+            if not txn_id:
+                return
+
+            async with semaphore:
+                try:
+                    transaction = await tebex.get_json(session, f"/payments/{txn_id}")
+                except Exception as exc:
+                    LOGGER.warning("Could not enrich Tebex transaction %s with package names: %s", txn_id, exc)
+                    return
+
+            names = product_names_from_payment(transaction)
+            if names:
+                payment["_product_names"] = names
+
+        await asyncio.gather(*(enrich_one(payment) for payment in missing))
 
 
 def normalize_payments(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -243,7 +374,7 @@ def normalize_payments(data: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(payments, list):
         return []
 
-    normalized = [payment for payment in payments if isinstance(payment, dict)]
+    normalized = [payment.copy() for payment in payments if isinstance(payment, dict)]
     normalized.sort(key=lambda payment: int(payment.get("time") or 0), reverse=True)
     return normalized
 
@@ -255,15 +386,18 @@ def player_name_from_user_payload(data: dict[str, Any]) -> str:
     return "Unknown player"
 
 
-def build_payment_line(index: int, payment: dict[str, Any]) -> str:
-    txn_id = as_text(payment.get("txn_id") or payment.get("transaction_id") or payment.get("id"), "Unknown transaction")
+def build_payment_line(index: int, payment: dict[str, Any], *, markdown: bool = True) -> str:
+    txn_id = transaction_id_from_payment(payment) or "Unknown transaction"
     price = money(payment.get("price") or payment.get("amount"), currency=as_text(payment.get("currency"), ""))
     status = status_label(payment.get("status"))
     date = format_timestamp(payment.get("time") or payment.get("date"))
-    packages = package_names(payment.get("packages", [])) if isinstance(payment.get("packages", []), list) else []
-    package_text = f"\n   Packages: {', '.join(packages)}" if packages else ""
+    products = product_names_from_payment(payment)
+    product_text = truncate_text(", ".join(products), 140) if products else "Product unavailable"
 
-    return f"{index}. `{date}` | {price} | {status} | `{txn_id}`{package_text}"
+    if markdown:
+        return f"{index}. **{product_text}**\n   `{date}` | {price} | {status} | Txn: `{txn_id}`"
+
+    return f"{index}. Product: {product_text} | Date: {date} | Amount: {price} | Status: {status} | Transaction: {txn_id}"
 
 
 def build_history_pages(payments: list[dict[str, Any]], items_per_page: int) -> list[str]:
@@ -304,7 +438,7 @@ def build_history_text_file(uuid: str, data: dict[str, Any], payments: list[dict
     ]
 
     if payments:
-        lines.extend(build_payment_line(index, payment) for index, payment in enumerate(payments, start=1))
+        lines.extend(build_payment_line(index, payment, markdown=False) for index, payment in enumerate(payments, start=1))
     else:
         lines.append("No payments found.")
 
@@ -377,7 +511,7 @@ async def transaction(interaction: discord.Interaction, transaction_id: str):
 
     player = data.get("player", {}) if isinstance(data.get("player"), dict) else {}
     currency = data.get("currency", {}) if isinstance(data.get("currency"), dict) else {}
-    packages = package_names(data.get("packages", [])) if isinstance(data.get("packages", []), list) else []
+    products = product_names_from_payment(data)
     notes = data.get("notes", []) if isinstance(data.get("notes", []), list) else []
 
     embed = discord.Embed(
@@ -388,7 +522,7 @@ async def transaction(interaction: discord.Interaction, transaction_id: str):
     embed.add_field(name="Amount", value=money(data.get("amount"), symbol=currency.get("symbol")), inline=True)
     embed.add_field(name="Status", value=as_text(data.get("status")), inline=True)
     embed.add_field(name="Date", value=format_timestamp(data.get("date")), inline=False)
-    embed.add_field(name="Packages", value="\n".join(f"- {name}" for name in packages)[:1024] if packages else "No packages found.", inline=False)
+    embed.add_field(name="Products", value="\n".join(f"- {name}" for name in products)[:1024] if products else "No products found.", inline=False)
 
     note_lines = []
     for note in notes:
@@ -431,6 +565,7 @@ async def purchasehistory(interaction: discord.Interaction, uuid: str, private: 
     username = player_name_from_user_payload(data)
     totals = data.get("purchaseTotals", {}) if isinstance(data.get("purchaseTotals"), dict) else {}
     payments = normalize_payments(data)
+    await enrich_payment_product_names(payments)
     pages = build_history_pages(payments, settings.history_items_per_page)
 
     embeds: list[discord.Embed] = []
@@ -440,7 +575,8 @@ async def purchasehistory(interaction: discord.Interaction, uuid: str, private: 
             description=page[:DISCORD_EMBED_DESCRIPTION_LIMIT],
             color=discord.Color.blurple(),
         )
-        embed.add_field(name="Total Spent (USD)", value=f"${as_text(totals.get('USD'), '0.00')}", inline=True)
+        if settings.show_total_spent_in_embed:
+            embed.add_field(name="Total Spent (USD)", value=f"${as_text(totals.get('USD'), '0.00')}", inline=True)
         embed.add_field(name="Payments", value=str(len(payments)), inline=True)
         embed.add_field(name="Ban Count", value=as_text(data.get("banCount"), "0"), inline=True)
         embed.add_field(name="Chargeback Rate", value=f"{as_text(data.get('chargebackRate'), '0')}%", inline=True)
