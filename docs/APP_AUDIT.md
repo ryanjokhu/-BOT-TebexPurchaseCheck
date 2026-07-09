@@ -22,7 +22,7 @@ The original app had one critical production defect: long purchase histories wer
 | Dependencies | `requirements.txt` | Version ranges are present, no lock file yet. |
 | Documentation | README, manifest, and `/docs` set | Updated to review/operations/security standards. |
 | Tests | None | Manual verification checklist exists; automated tests are recommended next. |
-| CI | None | Recommended next: syntax/type/lint workflow. |
+| CI | GitHub Actions syntax check | Runs dependency install and `python -m py_compile tebextransactioncheck.py`. |
 
 ## Critical defect found
 
@@ -102,7 +102,7 @@ Remaining concerns:
 | Staff can intentionally post receipts publicly with `private=false` | Medium | Default is private | Train staff; consider removing public mode if abused. |
 | No persistent audit log of receipt lookups | Medium | None | Add local/DB/Discord staff-log audit entry per lookup. |
 | No dependency lock file | Low-medium | Version ranges | Add pinned lock or deployment image. |
-| No CI | Low-medium | Manual checklist | Add GitHub Actions syntax check. |
+| Limited CI coverage | Low-medium | Syntax compile workflow | Add unit tests, lint, and dependency scanning. |
 | Tebex endpoint may have undocumented server-side limits | Unknown | Complete display of returned data | Verify with long-history real accounts; migrate endpoint if needed. |
 
 ## Reliability audit
@@ -114,12 +114,13 @@ Current improvements:
 - Defensive field access for player, payments, notes, and packages.
 - Pagination avoids Discord message limits.
 - Attachment avoids embed/readability limits.
+- CI syntax check catches invalid Python before merge.
 
 Remaining reliability work:
 
 1. Add unit tests for payment normalization, formatting, page splitting, and receipt text generation.
 2. Add a smoke-test command or startup self-check for required env variables.
-3. Add CI syntax/lint checks.
+3. Add lint/type checks to CI.
 4. Add structured audit logging for all lookups.
 5. Add a clearer deployment unit file or Docker option once production host is known.
 
@@ -162,6 +163,7 @@ The staff workflow is now aligned with the operational goal:
 
 This branch is acceptable to merge after these checks pass in the real Discord server:
 
+- CI syntax check passes.
 - A staff user can run `/transaction` successfully.
 - A staff user can run `/purchasehistory` for a short-history player.
 - A staff user can run `/purchasehistory` for a long-history player.
