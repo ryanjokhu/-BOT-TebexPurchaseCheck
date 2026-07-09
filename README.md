@@ -84,10 +84,11 @@ The embed pages are for browsing. The `.txt` receipt is the audit artifact staff
 | [`docs/STAFF_GUIDE.md`](docs/STAFF_GUIDE.md) | Staff-facing command usage and receipt verification workflow. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Prioritized next steps and open Tebex endpoint research item. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branch, PR, validation, coding, and documentation standards. |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Pull-request syntax validation workflow. |
 
 ## Validation before merge
 
-Before merging/deploying this release:
+CI now runs a Python syntax check on pull requests. Before merging/deploying this release, confirm CI passes and run this locally if needed:
 
 ```bash
 python -m py_compile tebextransactioncheck.py
