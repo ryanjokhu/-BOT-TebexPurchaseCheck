@@ -45,6 +45,12 @@ LOG_LEVEL=INFO
 
 Never commit `.env`.
 
+## CI
+
+Pull requests and pushes to `master` run a GitHub Actions syntax workflow. The workflow installs dependencies and compiles `tebextransactioncheck.py` with Python 3.11.
+
+CI does not call Discord or Tebex and does not require secrets.
+
 ## Preflight checks
 
 Run before starting the bot:
@@ -195,7 +201,8 @@ After merge:
 - Code reviewed.
 - Documentation updated.
 - `.env.example` still has no real secrets.
-- `python -m py_compile tebextransactioncheck.py` passes.
+- CI passes.
+- `python -m py_compile tebextransactioncheck.py` passes locally if needed.
 - Manual Discord test passes.
 - Long-history receipt test passes.
 - Staff permission test passes.
