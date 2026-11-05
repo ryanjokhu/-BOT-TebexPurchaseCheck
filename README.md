@@ -27,7 +27,7 @@ Commands are available to:
 
 If `STAFF_ROLE_IDS` is empty, only administrators and users with `Manage Server` can run the commands.
 
-For exceptional, individually approved users, `PURCHASE_HISTORY_USER_IDS` provides **/purchasehistory-only** access. This does not grant `/transaction` access. Non-staff delegates always receive private replies, even if they set `private=false`. Never add a broad `Member` or `Donator` role here: full purchase-history receipts contain sensitive payment information.
+For individually approved members, set both `PURCHASE_HISTORY_USER_IDS` and the server-private `PURCHASE_HISTORY_USER_SCOPE=discord_user_id:steam64`. Delegates can check only their mapped Steam account and always receive private replies, even with `private=false`; `/transaction` remains staff-only. Never add a broad Member/Donator role. The optional `verified_existing_kits.json` displays bridge-verified legacy kits separately from the Tebex payment count and real spending totals. It does not create payments, gifts, permission groups or additional kit credits.
 
 ## Setup
 
@@ -52,6 +52,8 @@ GUILD_ID=your_discord_server_id
 TEBEX_SECRET=your_tebex_secret
 DISCORD_TOKEN=your_discord_bot_token
 STAFF_ROLE_IDS=role_id_1,role_id_2
+PURCHASE_HISTORY_USER_IDS=approved_discord_user_id
+PURCHASE_HISTORY_USER_SCOPE=approved_discord_user_id:their_verified_steam64
 PURCHASE_HISTORY_USER_IDS=approved_discord_user_id
 HISTORY_ITEMS_PER_PAGE=8
 SHOW_TOTAL_SPENT_IN_EMBED=false
