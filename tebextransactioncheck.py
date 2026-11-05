@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import logging
 import os
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -209,6 +211,35 @@ def is_staff(interaction: discord.Interaction) -> bool:
 def can_view_purchase_history(interaction: discord.Interaction) -> bool:
     """Grant complete receipts only to staff or explicitly allowlisted users."""
     return is_staff(interaction) or getattr(interaction.user, "id", None) in settings.purchase_history_user_ids
+
+
+def read_verified_existing_kits(uuid: str) -> dict[str, Any] | None:
+    """Display a separately verified server entitlement; never manufacture Tebex payments."""
+    try:
+        source = Path(__file__).with_name("verified_existing_kits.json")
+        if source.stat().st_size > 4_096:
+            return None
+        data = json.loads(source.read_text(encoding="utf-8"))
+        names = data.get("existingKits")
+        if (data.get("schemaVersion") != 1 or data.get("steam64") != uuid
+            or data.get("source") != "exclusive-legacy"
+            or not isinstance(names, list) or len(names) != 4
+            or len(set(names)) != 4
+            or any(not isinstance(name, str) or len(name) > 40 or not name.isalnum() for name in names)):
+            return None
+        return data
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def can_query_purchase_history_target(interaction: discord.Interaction, uuid: str) -> bool:
+    """Delegated access is restricted to the explicitly verified Steam account."""
+    if is_staff(interaction):
+        return True
+    if not can_view_purchase_history(interaction):
+        return False
+    record = read_verified_existing_kits(uuid)
+    return record is not None
 
 
 def purchase_history_response_is_private(interaction: discord.Interaction, private: bool) -> bool:
@@ -435,7 +466,7 @@ def build_history_pages(payments: list[dict[str, Any]], items_per_page: int) -> 
     return pages
 
 
-def build_history_text_file(uuid: str, data: dict[str, Any], payments: list[dict[str, Any]]) -> discord.File:
+def build_history_text_file(uuid: str, data: dict[str, Any], payments: list[dict[str, Any]], verified_kits: dict[str, Any] | None = None) -> discord.File:
     username = player_name_from_user_payload(data)
     totals = data.get("purchaseTotals", {}) if isinstance(data.get("purchaseTotals"), dict) else {}
     lines = [
@@ -453,6 +484,16 @@ def build_history_text_file(uuid: str, data: dict[str, Any], payments: list[dict
         lines.extend(build_payment_line(index, payment, markdown=False) for index, payment in enumerate(payments, start=1))
     else:
         lines.append("No payments found.")
+
+    if verified_kits:
+        lines.extend([
+            "",
+            "Existing server kits (verified separately from Tebex purchases):",
+            *[f"- {name}" for name in verified_kits["existingKits"]],
+            "Four existing kits are linked to the player. One direct OP Custom Kit payment is already counted above.",
+            "The other three existing kits are recorded as verified historical entitlements, not additional payments.",
+            "The original purchaser of historical gifts has not been independently established."
+        ])
 
     buffer = io.BytesIO("\n".join(lines).encode("utf-8"))
     safe_uuid = "".join(char for char in uuid if char.isalnum() or char in ("-", "_"))[:64] or "player"
@@ -561,6 +602,9 @@ async def purchasehistory(interaction: discord.Interaction, uuid: str, private: 
         return
 
     uuid = uuid.strip()
+    if not can_query_purchase_history_target(interaction, uuid):
+        await send_unauthorized(interaction)
+        return
 
     try:
         data = await tebex.get_user(uuid)
@@ -580,6 +624,7 @@ async def purchasehistory(interaction: discord.Interaction, uuid: str, private: 
     await enrich_payment_product_names(payments)
     pages = build_history_pages(payments, settings.history_items_per_page)
 
+    verified_kits = read_verified_existing_kits(uuid)
     embeds: list[discord.Embed] = []
     for page_index, page in enumerate(pages, start=1):
         embed = discord.Embed(
@@ -592,10 +637,23 @@ async def purchasehistory(interaction: discord.Interaction, uuid: str, private: 
         embed.add_field(name="Payments", value=str(len(payments)), inline=True)
         embed.add_field(name="Ban Count", value=as_text(data.get("banCount"), "0"), inline=True)
         embed.add_field(name="Chargeback Rate", value=f"{as_text(data.get('chargebackRate'), '0')}%", inline=True)
+        if verified_kits:
+            embed.add_field(
+                name="Existing server kits (4 verified)",
+                value=", ".join(verified_kits["existingKits"]) + "\n"
+                    + "1 direct OP Custom Kit purchase; 3 separately verified legacy entitlements. "
+                    + "Historical gift purchaser unverified. No extra payments added.",
+                inline=False,
+            )
+            embed.add_field(
+                name="Direct Tebex spend (USD)",
+                value=f"${as_text(totals.get('USD'), '0.00')}",
+                inline=True,
+            )
         embed.set_footer(text=f"Page {page_index}/{len(pages)} • Full receipt attached as .txt")
         embeds.append(embed)
 
-    attachment = build_history_text_file(uuid, data, payments)
+    attachment = build_history_text_file(uuid, data, payments, verified_kits)
     view = PurchaseHistoryView(pages=pages, embeds=embeds, owner_id=interaction.user.id) if len(embeds) > 1 else None
     # discord.py 2.7 rejects an explicitly provided view=None. Single-page
     # histories have no paginator, so omit the optional argument entirely.
