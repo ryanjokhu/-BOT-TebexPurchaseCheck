@@ -238,8 +238,15 @@ def can_query_purchase_history_target(interaction: discord.Interaction, uuid: st
         return True
     if not can_view_purchase_history(interaction):
         return False
-    record = read_verified_existing_kits(uuid)
-    return record is not None
+    # Server-private scope mapping: "discord_user_id:steam64" entries separated by commas.
+    # No Discord-to-Steam identity relationship is committed to public source.
+    scopes = os.getenv("PURCHASE_HISTORY_USER_SCOPE", "")
+    for raw in scopes.split(","):
+        user_id, sep, permitted_steam = raw.strip().partition(":")
+        if sep and user_id.isdigit() and permitted_steam.isdigit():
+            if int(user_id) == interaction.user.id:
+                return permitted_steam == uuid and read_verified_existing_kits(uuid) is not None
+    return False
 
 
 def purchase_history_response_is_private(interaction: discord.Interaction, private: bool) -> bool:
