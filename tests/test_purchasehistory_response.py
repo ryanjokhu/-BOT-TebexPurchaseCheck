@@ -56,6 +56,8 @@ def payload(payment_count):
 class PurchaseHistoryResponseTests(IsolatedAsyncioTestCase):
     def setUp(self):
         self.saved_settings = bot.settings
+        self.scope_patch = patch.dict(os.environ, {"PURCHASE_HISTORY_USER_SCOPE": "23:76561198856040209"})
+        self.scope_patch.start()
         bot.settings = replace(
             bot.settings,
             staff_role_ids={10},
@@ -65,13 +67,14 @@ class PurchaseHistoryResponseTests(IsolatedAsyncioTestCase):
 
     def tearDown(self):
         bot.settings = self.saved_settings
+        self.scope_patch.stop()
 
     async def run_history(self, user, payments):
         with (
             patch.object(bot.tebex, "get_user", new_callable=AsyncMock, return_value=payload(payments)) as lookup,
             patch.object(bot, "enrich_payment_product_names", new_callable=AsyncMock),
         ):
-            await bot.purchasehistory.callback(user, "76561198000000000", private=False)
+            await bot.purchasehistory.callback(user, "76561198856040209", private=False)
         lookup.assert_awaited_once()
 
     async def test_single_page_delegate_has_private_receipt_without_view_keyword(self):
@@ -117,6 +120,6 @@ class PurchaseHistoryResponseTests(IsolatedAsyncioTestCase):
     async def test_unlisted_user_is_denied_without_contacting_tebex(self):
         user = make_interaction(user_id=999)
         with patch.object(bot.tebex, "get_user", new_callable=AsyncMock) as lookup:
-            await bot.purchasehistory.callback(user, "76561198000000000")
+            await bot.purchasehistory.callback(user, "76561198856040209")
         lookup.assert_not_awaited()
         self.assertIn("permission", user.followup.send.await_args.args[0].lower())
