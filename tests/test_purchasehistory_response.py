@@ -71,7 +71,7 @@ class PurchaseHistoryResponseTests(IsolatedAsyncioTestCase):
             patch.object(bot.tebex, "get_user", new_callable=AsyncMock, return_value=payload(payments)) as lookup,
             patch.object(bot, "enrich_payment_product_names", new_callable=AsyncMock),
         ):
-            await bot.purchasehistory(user, "76561198000000000", private=False)
+            await bot.purchasehistory.callback(user, "76561198000000000", private=False)
         lookup.assert_awaited_once()
 
     async def test_single_page_delegate_has_private_receipt_without_view_keyword(self):
@@ -117,6 +117,6 @@ class PurchaseHistoryResponseTests(IsolatedAsyncioTestCase):
     async def test_unlisted_user_is_denied_without_contacting_tebex(self):
         user = make_interaction(user_id=999)
         with patch.object(bot.tebex, "get_user", new_callable=AsyncMock) as lookup:
-            await bot.purchasehistory(user, "76561198000000000")
+            await bot.purchasehistory.callback(user, "76561198000000000")
         lookup.assert_not_awaited()
         self.assertIn("permission", user.followup.send.await_args.args[0].lower())
