@@ -597,7 +597,30 @@ async def purchasehistory(interaction: discord.Interaction, uuid: str, private: 
 
     attachment = build_history_text_file(uuid, data, payments)
     view = PurchaseHistoryView(pages=pages, embeds=embeds, owner_id=interaction.user.id) if len(embeds) > 1 else None
-    await interaction.followup.send(embed=embeds[0], view=view, file=attachment, ephemeral=response_is_private)
+    # discord.py 2.7 rejects an explicitly provided view=None. Single-page
+    # histories have no paginator, so omit the optional argument entirely.
+    response_kwargs = {"embed": embeds[0], "file": attachment, "ephemeral": response_is_private}
+    if view is not None:
+        response_kwargs["view"] = view
+    await interaction.followup.send(**response_kwargs)
+
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+    """Never leave a deferred interaction showing only 'thinking' after an exception."""
+    LOGGER.error(
+        "Unhandled application command error: %s",
+        getattr(getattr(interaction, "command", None), "name", "unknown"),
+        exc_info=(type(error), error, error.__traceback__),
+    )
+    try:
+        message = "The purchase check could not be completed. Please try again or contact staff."
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+    except discord.DiscordException:
+        LOGGER.exception("Unable to deliver application command failure response")
 
 
 if __name__ == "__main__":
