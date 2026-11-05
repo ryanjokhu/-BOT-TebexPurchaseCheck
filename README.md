@@ -27,6 +27,8 @@ Commands are available to:
 
 If `STAFF_ROLE_IDS` is empty, only administrators and users with `Manage Server` can run the commands.
 
+For exceptional, individually approved users, `PURCHASE_HISTORY_USER_IDS` provides **/purchasehistory-only** access. This does not grant `/transaction` access. Non-staff delegates always receive private replies, even if they set `private=false`. Never add a broad `Member` or `Donator` role here: full purchase-history receipts contain sensitive payment information.
+
 ## Setup
 
 1. Install Python 3.10+.
@@ -50,6 +52,7 @@ GUILD_ID=your_discord_server_id
 TEBEX_SECRET=your_tebex_secret
 DISCORD_TOKEN=your_discord_bot_token
 STAFF_ROLE_IDS=role_id_1,role_id_2
+PURCHASE_HISTORY_USER_IDS=approved_discord_user_id
 HISTORY_ITEMS_PER_PAGE=8
 SHOW_TOTAL_SPENT_IN_EMBED=false
 LOG_LEVEL=INFO
@@ -92,7 +95,7 @@ The embed pages are for browsing. The `.txt` receipt is the audit artifact staff
 
 ## Validation before merge
 
-CI now runs a Python syntax check on pull requests. Before merging/deploying this release, confirm CI passes and run this locally if needed:
+CI runs a Python syntax check and offline authorization regression tests on pull requests. Before merging/deploying this release, confirm CI passes and run this locally if needed:
 
 ```bash
 python -m py_compile tebextransactioncheck.py

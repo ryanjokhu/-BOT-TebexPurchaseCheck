@@ -25,3 +25,6 @@ jobs:
 
       - name: Compile bot
         run: python -m py_compile tebextransactioncheck.py
+
+      - name: Authorization regression tests
+        run: python -m unittest discover -s tests -v

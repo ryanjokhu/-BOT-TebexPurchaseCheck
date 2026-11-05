@@ -102,6 +102,7 @@ class Settings:
     tebex_secret: str
     discord_token: str
     staff_role_ids: set[int]
+    purchase_history_user_ids: set[int]
     history_items_per_page: int
     show_total_spent_in_embed: bool
 
@@ -112,6 +113,7 @@ class Settings:
             tebex_secret=_env_required("TEBEX_SECRET"),
             discord_token=_env_required("DISCORD_TOKEN"),
             staff_role_ids=_env_int_set("STAFF_ROLE_IDS"),
+            purchase_history_user_ids=_env_int_set("PURCHASE_HISTORY_USER_IDS"),
             history_items_per_page=max(1, min(15, _env_int("HISTORY_ITEMS_PER_PAGE", DEFAULT_HISTORY_ITEMS_PER_PAGE))),
             show_total_spent_in_embed=_env_bool("SHOW_TOTAL_SPENT_IN_EMBED", False),
         )
@@ -202,6 +204,16 @@ def is_staff(interaction: discord.Interaction) -> bool:
 
     roles = getattr(interaction.user, "roles", [])
     return any(getattr(role, "id", None) in settings.staff_role_ids for role in roles)
+
+
+def can_view_purchase_history(interaction: discord.Interaction) -> bool:
+    """Grant complete receipts only to staff or explicitly allowlisted users."""
+    return is_staff(interaction) or getattr(interaction.user, "id", None) in settings.purchase_history_user_ids
+
+
+def purchase_history_response_is_private(interaction: discord.Interaction, private: bool) -> bool:
+    """Non-staff delegates cannot post financial records to public channels."""
+    return private or not is_staff(interaction)
 
 
 def as_text(value: Any, fallback: str = "N/A") -> str:
@@ -541,8 +553,8 @@ async def transaction(interaction: discord.Interaction, transaction_id: str):
     private="Keep the receipt visible only to you. Disable only when staff intentionally need it posted in-channel.",
 )
 async def purchasehistory(interaction: discord.Interaction, uuid: str, private: bool = True):
-    is_authorized = is_staff(interaction)
-    response_is_private = private or not is_authorized
+    is_authorized = can_view_purchase_history(interaction)
+    response_is_private = purchase_history_response_is_private(interaction, private)
     await interaction.response.defer(ephemeral=response_is_private, thinking=True)
     if not is_authorized:
         await send_unauthorized(interaction)
